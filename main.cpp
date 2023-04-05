@@ -1,78 +1,53 @@
-#include <Arduino.h>
-#include <Uart.h>
-#include <nrf.h>
-#include "HardwareSerial.h"
-#include "Plotter.h"
+#include <myo.h>
 
-#define sensor 28
-#define TX 16
-#define RX 17
-#define LED_BUILTIN_G 10
-#define EMG 5
-#define SWO 18
-#define SWDCLK SWDCLK
-#define SWDIO SWDIO
+#define ONBOARD_LED  2
 
-double emg = 0;
+armband myo; // Myo BLE Armband
 
-double x;
-double y;
-
-Plotter p;
-
-void setup() {
-  pinMode(LED_BUILTIN_G, OUTPUT);
-  pinMode(EMG, OUTPUT);
-  Serial.setPins(RX, TX);
-  Serial.begin(115200);
-
-//   p.Begin();
-//   p.AddXYGraph( "X-Y graph w/ 500 points", 500, "x axis", x, "y axis", y );
-//   p.AddXYGraph( "X-Y graph w/ 200 points", 200, "x axis", x, "y axis", y );
-
-//   p.AddTimeGraph( "Time graph w/ 500 points", 500, "x label", x );
-//   p.AddTimeGraph( "Time graph w/ 200 points", 200, "x label", x );
-
-  Serial.println("Hello World mRF52832");
-  delay(1000);
+// Serial
+void print_emg_sample(int8_t *sample, size_t len)
+{
+  for (int i = 0; i < len; i++)
+  {
+    Serial.print(sample[i]);
+    Serial.print("\t");
+  }
+  Serial.println();
 }
 
-void loop() {
-  digitalWrite(LED_BUILTIN_G, HIGH);
-  delay(500);
-  digitalWrite(LED_BUILTIN_G, LOW);
-  delay(500);
-  emg = analogRead(EMG);
-  Serial.println(emg);
+// Read EMG Myo
+void emg_callback(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
+{
+  myohw_emg_data_t *emg_data = (myohw_emg_data_t *)pData;
+  print_emg_sample(emg_data->sample1, myohw_num_emg_sensors);
+  print_emg_sample(emg_data->sample2, myohw_num_emg_sensors);
+}
+
+// Connect Myo
+void myo_connect()
+{
+  Serial.println("Connecting...");
+  myo.connect();
+  Serial.println(" - Connected");
   delay(100);
 
-//   x = 10*sin( 2.0*PI*( millis() / 5000.0 ) );
-//   y = 10*cos( 2.0*PI*( millis() / 5000.0 ) );
+  myo.set_myo_mode(myohw_emg_mode_send_emg,         // EMG mode send_emg none
+                   myohw_imu_mode_none,             // IMU mode send_data none
+                   myohw_classifier_mode_disabled); // Classifier mode enable disable
 
-//   p.Plot();
+  myo.emg_notification(TURN_ON)->registerForNotify(emg_callback);
 }
 
-// void setup()
-// {
-//     // Start plotter
-//     p.Begin();
-  
-//     // Add X-Y graphs 
-//     p.AddXYGraph( "X-Y graph w/ 500 points", 500, "x axis", x, "y axis", y );
-//     p.AddXYGraph( "X-Y graph w/ 200 points", 200, "x axis", x, "y axis", y );
+void setup()
+{
+  Serial.begin(115200);
+}
 
-//     // Add time graphs. Notice the effect of points displayed on the time scale
-//     p.AddTimeGraph( "Time graph w/ 500 points", 500, "x label", x );
-//     p.AddTimeGraph( "Time graph w/ 200 points", 200, "x label", x );
-
-// }
-
-// void loop()
-// {
-//     // Update variables with arbitrary sine/cosine data
-//     x = 10*sin( 2.0*PI*( millis() / 5000.0 ) );
-//     y = 10*cos( 2.0*PI*( millis() / 5000.0 ) );
-
-//     // Plot
-//     p.Plot();
-// }
+void loop()
+{
+  if (!myo.connected)
+  {
+    myo_connect();
+  }
+  delay(10);
+}
